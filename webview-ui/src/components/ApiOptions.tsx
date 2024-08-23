@@ -1,5 +1,6 @@
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import React, { useMemo } from "react"
+import React, { useMemo, useEffect, useState } from "react";
+import { vscode } from "../utils/vscode";
 import {
 	ApiConfiguration,
 	ApiModelId,
@@ -60,6 +61,39 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 			</VSCodeDropdown>
 		)
 	}
+
+	const [availableModels, setAvailableModels] = useState<string[]>([]);
+
+	useEffect(() => {
+		if (selectedProvider === 'openai') {
+			vscode.postMessage({ type: 'getEnvironmentVariables' });
+		}
+	}, [selectedProvider]);
+
+	useEffect(() => {
+		const handler = (event: MessageEvent) => {
+			const message = event.data;
+			if (message.type === 'environmentVariables') {
+				setApiConfiguration(prev => ({
+					...prev,
+					openAiApiKey: message.openAiApiKey || prev?.openAiApiKey,
+					openAiBaseUrl: message.openAiBaseUrl || prev?.openAiBaseUrl || 'https://api.openai.com/v1'
+				}));
+			} else if (message.type === 'availableModels') {
+				setAvailableModels(message.models);
+			}
+		};
+
+		window.addEventListener('message', handler);
+		return () => window.removeEventListener('message', handler);
+	}, [setApiConfiguration]);
+
+	useEffect(() => {
+		if (selectedProvider === 'openai' && apiConfiguration?.openAiApiKey && apiConfiguration?.openAiBaseUrl) {
+			vscode.postMessage({ type: 'fetchAvailableModels', apiConfiguration });
+		}
+	}, [selectedProvider, apiConfiguration?.openAiApiKey, apiConfiguration?.openAiBaseUrl, apiConfiguration]);
+
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -134,17 +168,53 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenAI API Key</span>
 					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						This key is stored locally and only used to make API requests from this extension.
+					<VSCodeTextField
+						value={apiConfiguration?.openAiBaseUrl || ""}
+						style={{ width: "100%", marginTop: "10px" }}
+						onInput={handleInputChange("openAiBaseUrl")}
+						placeholder="Enter Base URL...">
+						<span style={{ fontWeight: 500 }}>OpenAI Base URL</span>
+					</VSCodeTextField>
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						These settings are stored locally and only used to make API requests from this extension.
 						<VSCodeLink href="https://platform.openai.com/account/api-keys" style={{ display: "inline" }}>
 							You can get an OpenAI API key by signing up here.
 						</VSCodeLink>
 					</p>
+				</div>
+			)}
+
+			{selectedProvider === 'openai' && showModelOptions && (
+				<div className="dropdown-container">
+					<label htmlFor="model-id">
+						<span style={{ fontWeight: 500 }}>Model</span>
+					</label>
+					{availableModels.length > 0 ? (
+						<VSCodeDropdown
+							id="model-id"
+							value={selectedModelId}
+							onChange={handleInputChange("apiModelId")}
+							style={{ width: "100%" }}>
+							<VSCodeOption value="">Select a model...</VSCodeOption>
+							{availableModels.map((modelId) => (
+								<VSCodeOption key={modelId} value={modelId}>
+									{modelId}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+					) : (
+						<VSCodeTextField
+							value={apiConfiguration?.apiModelId || ""}
+							style={{ width: "100%" }}
+							onInput={handleInputChange("apiModelId")}
+							placeholder="Enter model name...">
+							<span style={{ fontWeight: 500 }}>Model Name</span>
+						</VSCodeTextField>
+					)}
 				</div>
 			)}
 
@@ -221,7 +291,6 @@ const ApiOptions: React.FC<ApiOptionsProps> = ({ showModelOptions, apiConfigurat
 						</label>
 						{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
 						{selectedProvider === "openrouter" && createDropdown(openRouterModels)}
-						{selectedProvider === "openai" && createDropdown(openAiModels)}
 						{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 					</div>
 

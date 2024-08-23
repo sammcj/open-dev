@@ -111,21 +111,6 @@ const SettingsView = ({
 							<span style={{ fontWeight: "500" }}>OpenAI Model ID</span>
 						</VSCodeTextField>
 					</div>
-					<div style={{ marginBottom: 5 }}>
-						<VSCodeTextField
-							value={apiConfiguration?.openAiBaseUrl || ""}
-							style={{ width: "100%" }}
-							placeholder="e.g., https://api.openai.com/v1"
-							onInput={(e: any) =>
-								setApiConfiguration((prev) => ({
-									...prev,
-									openAiBaseUrl: e.target?.value,
-								}))
-							}
-						>
-							<span style={{ fontWeight: "500" }}>OpenAI Base URL</span>
-						</VSCodeTextField>
-					</div>
 					{apiErrorMessage && (
 						<p
 							style={{

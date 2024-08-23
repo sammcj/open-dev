@@ -16,13 +16,23 @@ export class OpenAIHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options;
 		this.client = new OpenAI({
-			baseURL: this.options.openAiBaseUrl || "http://localhost:11434/v1",
+			baseURL: this.options.openAiBaseUrl || "https://api.openai.com/v1",
 			apiKey: this.options.openAiApiKey,
 			defaultHeaders: {
 				"HTTP-Referer": "https://github.com/sammcj/open-dev", // Optional, for including your app on openAI.ai rankings.
 				"X-Title": "open-dev", // Optional. Shows in rankings on openAI.ai.
 			},
 		});
+	}
+
+	async fetchAvailableModels(): Promise<string[]> {
+		try {
+			const response = await this.client.models.list();
+			return response.data.map(model => model.id);
+		} catch (error) {
+			console.error("Error fetching models:", error);
+			return [];
+		}
 	}
 
 	async createMessage(

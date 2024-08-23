@@ -1,13 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import * as vscode from "vscode";
 import { OpenDev } from "../OpenDev";
-import { ApiModelId, ApiProvider } from "../shared/api";
+import { ApiModelId, ApiProvider, ApiConfiguration } from "../shared/api";
 import { ExtensionMessage } from "../shared/ExtensionMessage";
 import { WebviewMessage } from "../shared/WebviewMessage";
 import { downloadTask, getNonce, getUri, selectImages } from "../utils";
 import * as path from "path";
 import fs from "fs/promises";
 import { HistoryItem } from "../shared/HistoryItem";
+import { OpenAIHandler } from "../api/openai";
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -32,6 +33,20 @@ export class OpenDevProvider implements vscode.WebviewViewProvider {
 	private view?: vscode.WebviewView | vscode.WebviewPanel;
 	private openDev?: OpenDev;
 	private latestAnnouncementId = "aug-17-2024"; // update to some unique identifier when we add a new announcement
+
+	private async getEnvironmentVariables() {
+		const openAiApiKey = process.env.OPENAI_API_KEY;
+		const openAiBaseUrl = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+		return { openAiApiKey, openAiBaseUrl };
+	}
+
+	private async fetchAvailableModels(apiConfiguration: ApiConfiguration) {
+		if (apiConfiguration.apiProvider === 'openai') {
+			const handler = new OpenAIHandler(apiConfiguration);
+			return await handler.fetchAvailableModels();
+		}
+		return [];
+	}
 
 	constructor(readonly context: vscode.ExtensionContext, private readonly outputChannel: vscode.OutputChannel) {
 		this.outputChannel.appendLine("OpenDevProvider instantiated");
@@ -341,6 +356,20 @@ export class OpenDevProvider implements vscode.WebviewViewProvider {
 						break;
 					case "exportTaskWithId":
 						this.exportTaskWithId(message.text!);
+						break;
+					case 'getEnvironmentVariables':
+						const envVars = await this.getEnvironmentVariables();
+						await this.postMessageToWebview({
+							type: 'environmentVariables',
+							openAiApiKey: envVars.openAiApiKey,
+							openAiBaseUrl: envVars.openAiBaseUrl
+						});
+						break;
+					case 'fetchAvailableModels':
+						if (message.apiConfiguration) {
+							const models = await this.fetchAvailableModels(message.apiConfiguration);
+							await this.postMessageToWebview({ type: 'availableModels', models });
+						}
 						break;
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
